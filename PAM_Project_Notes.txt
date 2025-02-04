@@ -1,0 +1,260 @@
+Type1error -  False positive
+Type2error -  False Negative
+
+Based on the output obtained, all the indepentent variables like (Home owner, Female, Married, Church, Age, Householdsize, 
+Income and education) are significant in predicting whether the citized in decided or undecided to vote in the upcoming election.
+
+The overall test or significance of the model is based on the chisq test. Based on the output above, the test is highly significant 
+which states that the likelihood of voting depends on all the independent variables (Home owner, Female, Married, Church, Age, Householdsize, 
+Income and education). Hence, we can say that the null hypothesis (All the beta coefficients are zero) is rejected.
+
+Based on the output above, we can see that the Mcfadden R2 value states that 22.16% of the variance in the dependent variable is explained
+by the independent variables. This proves that the goodness of fit is quite robust.
+
+
+0807
+
+#setting the working directory
+getwd()
+setwd("D:/Class Documents/Semester 4/PAM/Dataset")
+#***************************************************************************************#
+
+#reading the data
+mydata2=read.csv("BlueOrRed.csv", header = TRUE,na.strings = c(""," ","NA"))
+mydata1=read.csv("BlueOrRed.csv", header = TRUE,na.strings = c(""," ","NA"))
+#***************************************************************************************#
+
+#Installing libraries
+install.packages("caret")
+install.packages("rpart.plot")
+install.packages("ROCR")
+install.packages("e1071")
+install.packages("lmtest")
+install.packages("pscl")
+install.packages("Deducer")
+install.packages("mlr")
+#***************************************************************************************#
+
+#Library
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(MASS)
+library(ROCR)
+library(DiscriMiner)
+library(e1071)
+library(lmtest)
+library(pscl)
+library(Deducer)
+library(mlr)
+#***************************************************************************************#
+
+#Pre_Processing of data
+summary(mydata)
+str(mydata)
+#***************************************************************************************#
+
+#Converting continuos variables in to factor variables
+colsasfact=c("Undecided","HomeOwner","Female","Married","Church")
+mydata[colsasfact]=lapply(mydata[colsasfact], as.factor)
+#***************************************************************************************#
+
+#scaling the data (age, income, house hold size and education are in different scale)
+mydata.scaled=mydata
+mydata.scaled$Age_scaled<-scale(mydata.scaled$Age)
+mydata.scaled$HouseholdSize_scaled<-scale(mydata.scaled$HouseholdSize)
+mydata.scaled$Income_scaled<-scale(mydata.scaled$Income)
+mydata.scaled$Education_scaled<-scale(mydata.scaled$Education)
+#***************************************************************************************#
+
+#Pre_Processed data
+summary(mydata.scaled)
+str(mydata.scaled)
+
+#Remove un-scaled variables
+mydata.scaled = mydata.scaled[,-c(2,6,7,8)]
+#***************************************************************************************#
+
+#Partitioning the data
+set.seed(123)
+trainsplit<- createDataPartition(mydata.scaled$Undecided,p=0.7,list = FALSE)
+train=mydata.scaled[trainsplit,]
+test=mydata.scaled[-trainsplit,]
+#***************************************************************************************#
+
+#Logistic Regression
+#TRAIN DATA
+
+logittrain=glm(train$Undecided~.,data=train,family=binomial)
+summary(logittrain)
+
+#Building the prediciton model using the train data
+predictiontrain=predict(logittrain,type="response")
+predictiontrain
+typeof(predictiontrain)
+#***************************************************************************************#
+
+#Cutoff score
+cutofftrain=floor(predictiontrain+0.5)
+cutofftrain=as.factor(cutofftrain)
+
+#Confusion Matrix
+table(actual=train$Undecided,predicted=cutofftrain)
+confusionMatrix(train$Undecided,cutofftrain, positive="1")
+#***************************************************************************************#
+
+#TEST DATA
+#using the predicited model for the test data
+predictiontest=predict(logittrain,newdata = test, type="response")
+predictiontest
+#***************************************************************************************#
+
+#Cutoff score
+cutofftest=floor(predictiontest+0.5)
+cutofftest=as.factor(cutofftest)
+#***************************************************************************************#
+
+#Confusion Matrix
+table(actual=test$Undecided,predicted=cutofftest)
+confusionMatrix(test$Undecided,cutofftest, positive="1")
+#***************************************************************************************#
+
+#Model_Diagnostics
+##Overall model significance
+#Chi-square test result -p value should be less than 0.05
+
+lrtest(logittrain)
+#McFadden Value - R2 value
+pR2(logittrain)
+#***************************************************************************************#
+
+#Log Odds function
+exp(coef(logittrain))
+#***************************************************************************************#
+
+#Probabilty 
+value=(exp(coef(logittrain))/(1+exp(coef(logittrain))))
+value
+#***************************************************************************************#
+
+#ROC Curve
+pred=prediction(as.numeric(cutofftest),as.numeric(test$Undecided))
+perf=performance(pred,"tpr","fpr")
+plot(perf)
+#***************************************************************************************#
+
+#create AUC data
+aucval=performance(pred,"auc")
+aucval
+#***************************************************************************************#
+
+#calculate AUC
+logistic_auc=as.numeric(aucval@y.values)
+#***************************************************************************************#
+
+#display the auc value
+logistic_auc
+#***************************************************************************************#
+
+varImp(logittrain)
+colnames(mydata)
+
+#***************************************************************************************#
+
+#Discriminant Analysis
+
+#Converting continuos variables in to factor variables
+
+colsasfact=c("Undecided","HomeOwner","Female","Married","Church")
+mydata1[colsasfact]=lapply(mydata1[colsasfact], as.factor)
+
+#Creating dummy variables for all the categorical independent variables
+mydata.dummy=createDummyFeatures(mydata1,target="Undecided",method = "reference")
+
+createDummyFeatures
+str(mydata.dummy)
+#***************************************************************************************#
+
+#Splitting the data
+set.seed(123)
+trainsplit1<- createDataPartition(mydata.dummy$Undecided,p=0.7,list = FALSE)
+train1=mydata.dummy[trainsplit1,]
+test1=mydata.dummy[-trainsplit1,]
+#***************************************************************************************#
+
+#Dependent and Independent Variable
+X=mydata.dummy[,2:9]
+Y=mydata.dummy[,1]
+Xtrain=train1[,2:9]
+Ytrain=train1[,1]
+Xtest=test1[,2:9]
+Ytest=test1[,1]
+#***************************************************************************************#
+
+#Fisher Value
+#Descriptive Discriminant Analysis
+#Constant is the cut off point 
+Fisher=desDA(X,Y)
+Fisher
+Fisher$scores
+#***************************************************************************************#
+
+#Train data
+#Linear Discriminant Analysis
+#Mahalanobis gives the equation but not classification
+
+mahalanobis.train=linDA(Xtrain,Ytrain)
+mahalanobis.train
+mahalanobis.train$scores
+#***************************************************************************************#
+
+Fisher=lda(train1$Undecided~.,data=train1)
+Fisher
+#***************************************************************************************#
+
+#Jackknife
+jackknife = lda(train1$Undecided~.,CV=TRUE,data=train1)
+jackknife
+#***************************************************************************************#
+
+#Confusion Matrix
+predicted=predict(Fisher,data=train1)$class
+predicted
+table(Actual=train1$Undecided,predicted)
+#***************************************************************************************#
+
+#TESTING DATA
+#Confusion Matrix
+#Mahalanobis
+mahalanobis.test=linDA(Xtest,Ytest)
+mahalanobis.test
+mahalanobis.test$scores
+
+#Fisher
+predictedtest=predict(Fisher,newdata=test1)$class
+predictedtest
+table(Actual=test1$Undecided,predictedtest)
+#***************************************************************************************#
+LDA:
+By using the descriptive discriminant analysis function, we can get the importance of the independent variables. As shown 
+in the figure above table, if we order the discriminant variables in a descending order, then we will the ranking for the important
+variables. Based on the scores, it states that the gender has the highest influence on being decide or undecided to vote. 
+In the table, the varibales gender (Male or Female) has the highest influence on deiciding whether to vote or not. Among the people, 
+females are highly decided to vote compared to men. 
+After the gender, the variables home owner and education has the highest impact on whether the people are decided to vote or not. 
+The variables Age, Income and Church are negatively correlated. This states that increase in one unit of income or age will lead to 
+people becoming undecided to vote. The people who are not going to church are more decided to vote compared to the people who are
+going to vote.
+
+Based on the Fisher's linear discrimant model, the prior probabilty states that 59.86% of the people are undecided to vote and 40.13% of the
+people are decide to vote. 
+Based on the group means both the groups means for all the independent variables are different and hence the null hypothesis that both
+the groups are same can be neglected.
+Based on the prediction, the training data is having an accuracy of about 75.3% for training data and 74.5% for the testing data. Hence, 
+both the logistic regression and the linear discriminant analysis are providing us with more or less the same accuracy. 
+
+Managerial Report:
+ 
+
+ 
+
